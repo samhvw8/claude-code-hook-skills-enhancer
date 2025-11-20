@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/skill-activation-prompt.sh"
+          }
+        ]
+      }
+    ]
+  },
+  "alwaysThinkingEnabled": false
+}
