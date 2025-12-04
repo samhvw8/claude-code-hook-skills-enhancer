@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$HOME/.claude/hooks/skill-activation-prompt.sh"
+            "command": "bash $HOME/.claude/hooks/force-agent-skills-eval.sh"
           }
         ]
       }

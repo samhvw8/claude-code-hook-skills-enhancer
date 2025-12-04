@@ -1,6 +1,6 @@
 ---
 name: skill-developer
-description: Skill system infrastructure manager. Create/modify skills, configure skill-rules.json, design trigger patterns, debug activation, implement hooks (UserPromptSubmit/PreToolUse). Scope: meta-level operations only - NOT domain content (UI/backend/workflows). Covers: YAML frontmatter, keyword/intent patterns, enforcement levels, progressive disclosure, 500-line rule, Anthropic best practices.
+description: Skill system infrastructure manager. Create/modify skills, design trigger patterns, debug activation, implement hooks (UserPromptSubmit/PreToolUse). Scope: meta-level operations only - NOT domain content (UI/backend/workflows). Covers: YAML frontmatter, keyword/intent patterns, enforcement levels, progressive disclosure, 500-line rule, Anthropic best practices.
 ---
 
 # Skill Developer Guide
@@ -18,12 +18,15 @@ Automatically activates when you mention:
 - Modifying skill triggers or rules
 - Understanding how skill activation works
 - Debugging skill activation issues
-- Working with skill-rules.json
 - Hook system mechanics
 - Claude Code best practices
 - Progressive disclosure
 - YAML frontmatter
 - 500-line rule
+- Keyword weights or scoring
+- Confidence levels
+- Shorthands, synonyms, abbreviations
+- Adding trigger patterns
 
 ## Context Awareness: What This Skill Covers
 
@@ -31,7 +34,6 @@ Automatically activates when you mention:
 
 **Skill System Management:**
 - Creating/modifying `.claude/skills/` directory contents
-- Editing `skill-rules.json` configuration
 - Writing/updating `SKILL.md` files
 - Designing trigger patterns (keywords, intent patterns)
 - Understanding hook mechanisms (UserPromptSubmit, PreToolUse)
@@ -42,10 +44,13 @@ Automatically activates when you mention:
 **Keywords That Trigger This Skill:**
 - "skill triggers", "skill activation", "skill keywords"
 - "intent patterns", "promptTriggers", "enforcement levels"
-- "skill-rules.json", "SKILL.md", "skill frontmatter"
+- "SKILL.md", "skill frontmatter"
 - "UserPromptSubmit", "PreToolUse", "hook system"
 - "progressive disclosure", "500-line rule"
 - "skill metadata", "trigger conditions"
+- "keyword weight", "pattern weight", "scoring", "match score"
+- "confidence level", "diminishing returns", "priority multiplier"
+- "shorthand", "synonym", "abbreviation", "alias"
 
 ### ❌ This Skill is NOT FOR (Domain-Specific Content)
 
@@ -74,7 +79,7 @@ Automatically activates when you mention:
 | "How to use OKLCH colors?" | ❌ ui-design-system | UI/frontend topic |
 | "Create a new skill for Docker" | ✅ skill-developer | Creating skill infrastructure |
 | "How to containerize app?" | ❌ docker skill | Domain content |
-| "Update skill-rules.json keywords" | ✅ skill-developer | Skill system configuration |
+| "Update skill keywords" | ✅ skill-developer | Skill system configuration |
 | "What are naming conventions for design tokens?" | ❌ ui-design-system | UI design content |
 
 ### 🔍 Context-Aware Trigger Strategy
@@ -105,26 +110,6 @@ Automatically activates when you mention:
 - **Purpose**: Suggest relevant skills based on keywords + intent patterns
 - **Method**: Injects formatted reminder as context (stdout → Claude's input)
 - **Use Cases**: Topic-based skills, implicit work detection
-
-**2. Stop Hook - Error Handling Reminder** (Gentle Reminders)
-- **File**: `.claude/hooks/error-handling-reminder.ts`
-- **Trigger**: AFTER Claude finishes responding
-- **Purpose**: Gentle reminder to self-assess error handling in code written
-- **Method**: Analyzes edited files for risky patterns, displays reminder if needed
-- **Use Cases**: Error handling awareness without blocking friction
-
-**Philosophy Change (2025-10-27):** We moved away from blocking PreToolUse for Sentry/error handling. Instead, use gentle post-response reminders that don't block workflow but maintain code quality awareness.
-
-### Configuration File
-
-**Location**: `.claude/skills/skill-rules.json`
-
-Defines:
-- All skills and their trigger conditions
-- Enforcement levels (block, suggest, warn)
-- File path patterns (glob)
-- Content detection patterns (regex)
-- Skip conditions (session tracking, file markers, env vars)
 
 ---
 
@@ -186,7 +171,7 @@ Defines:
 ```markdown
 ---
 name: my-new-skill
-description: Brief description including keywords that trigger this skill. Mention topics, file types, and use cases. Be explicit about trigger terms.
+description: Brief description including keywords for discoverability. Mention topics, file types, and use cases.
 ---
 
 # My New Skill
@@ -201,33 +186,21 @@ Specific scenarios and conditions
 The actual guidance, documentation, patterns, examples
 ```
 
+**YAML Frontmatter fields:**
+- `name` (required): Skill identifier
+- `description` (required): Brief description for discoverability (max 1024 chars)
+- `license` (optional): License reference
+
+**⚠️ IMPORTANT:** Triggers are configured via hooks or YAML frontmatter description keywords.
+
 **Best Practices:**
 - ✅ **Name**: Lowercase, hyphens, gerund form (verb + -ing) preferred
-- ✅ **Description**: Include ALL trigger keywords/phrases (max 1024 chars)
+- ✅ **Description**: Include keywords for discoverability (max 1024 chars)
 - ✅ **Content**: Under 500 lines - use reference files for details
 - ✅ **Examples**: Real code examples
 - ✅ **Structure**: Clear headings, lists, code blocks
 
-### Step 2: Add to skill-rules.json
-
-See [SKILL_RULES_REFERENCE.md](SKILL_RULES_REFERENCE.md) for complete schema.
-
-**Basic Template:**
-```json
-{
-  "my-new-skill": {
-    "type": "domain",
-    "enforcement": "suggest",
-    "priority": "medium",
-    "promptTriggers": {
-      "keywords": ["keyword1", "keyword2"],
-      "intentPatterns": ["(create|add).*?something"]
-    }
-  }
-}
-```
-
-### Step 3: Test Triggers
+### Step 2: Test Triggers
 
 **Test UserPromptSubmit:**
 ```bash
@@ -242,7 +215,7 @@ cat <<'EOF' | npx tsx .claude/hooks/skill-verification-guard.ts
 EOF
 ```
 
-### Step 4: Refine Patterns
+### Step 3: Refine Patterns
 
 Based on testing:
 - Add missing keywords
@@ -250,7 +223,7 @@ Based on testing:
 - Adjust file path patterns
 - Test content patterns against actual files
 
-### Step 5: Follow Anthropic Best Practices
+### Step 4: Follow Anthropic Best Practices
 
 ✅ Keep SKILL.md under 500 lines
 ✅ Use progressive disclosure with reference files
@@ -258,6 +231,25 @@ Based on testing:
 ✅ Write detailed description with trigger keywords
 ✅ Test with 3+ real scenarios before documenting
 ✅ Iterate based on actual usage
+
+---
+
+## Scoring System (v2.0)
+
+Keywords/patterns have weights; score determines enforcement level:
+
+| Confidence | Score | Enforcement |
+|------------|-------|-------------|
+| 🔴 critical | ≥12 | REQUIRED |
+| 🟠 high | ≥8 | RECOMMENDED |
+| 🟡 medium | ≥4 | SUGGESTED |
+| 🟢 low | ≥2 | OPTIONAL |
+
+**Key concepts:**
+- **Weighted keywords**: `{"value": "k8s", "weight": 5.0}` or auto-calculated
+- **Diminishing returns**: Multiple matches contribute less each
+- **Priority multiplier**: critical=4x, high=3x, medium=2x, low=1x
+
 
 ---
 
@@ -338,233 +330,51 @@ export SKIP_ERROR_REMINDER=true
 
 ## Enhancing Existing Skills
 
-### When to Enhance Skills
+**When to Enhance:** >500 lines, poor structure, second-person voice, vague examples
 
-Enhance skills when they have:
-- Verbose content (SKILL.md >500 lines or >5k words)
-- Poor structure or unclear organization
-- Second-person voice ("you should/can/will")
-- Missing or vague examples
-- Unused files or duplicated content
-- Vague metadata or descriptions
-- Quality issues affecting effectiveness
+**Key Principles:**
+1. Move details to reference files (progressive disclosure)
+2. Use imperative voice ("Process files..." not "You should...")
+3. Organize resources: `scripts/`, `references/`, `assets/`
+4. Target <500 lines in SKILL.md
 
-### Enhancement Principles
-
-1. **Conciseness**: Move details to reference files
-2. **Direct Voice**: Use imperative/infinitive (NOT second person)
-3. **Clear Structure**: Apply consistent patterns
-4. **XML Integration**: Use tags for constraints/requirements
-5. **Resource Optimization**: Organize scripts/references/assets properly
-
-### Enhancement Process
-
-**Step 1: Analysis**
-- Read complete skill (SKILL.md + all resources)
-- Identify quality issues across all dimensions
-- Note structural problems and verbosity
-
-**Step 2: Metadata Enhancement**
-- Ensure kebab-case naming
-- Write comprehensive description (30-60 words, third-person voice)
-- Include specific trigger keywords and scenarios
-
-**Step 3: Voice Correction**
-- Eliminate "you should/can/will" phrases
-- Convert to imperative: "Use X to...", "Process files by..."
-- Remove filler words: "simply", "just", "basically"
-- Use active voice throughout
-
-**Step 4: Structural Optimization**
-Apply appropriate pattern:
-- **Workflow-based**: Sequential processes
-- **Task-based**: Multiple discrete operations
-- **Reference-based**: Standards and specifications
-- **Capabilities-based**: Integrated feature systems
-
-**Step 5: Content Refinement**
-- Add concrete before/after examples
-- Use XML tags for constraints, requirements, format
-- Keep main instructions in natural language
-- Reference bundled resources with usage instructions
-
-**Step 6: Resource Organization**
-- `scripts/` - Executable automation code
-- `references/` - Detailed documentation
-- `assets/` - Templates and boilerplate
-- Delete unused example files
-- Eliminate duplication
-
-**Step 7: Size Reduction**
-- Move comprehensive docs to references/
-- Add grep patterns for finding content
-- Implement progressive disclosure
-- Target <500 lines in SKILL.md
-
-### Enhancement Examples
-
-**Voice Correction:**
-```markdown
-# Before
-You should use this function when you need to process files.
-
-# After
-Process files using this function.
-```
-
-**Structure with XML:**
-```markdown
-# Before
-This helps with data analysis.
-
-# After
-Analyze datasets to identify key insights and patterns.
-
-<requirements>
-- Highlight statistically significant findings
-- Identify temporal trends and correlations
-- Note anomalies or outliers
-</requirements>
-```
-
-**Progressive Disclosure:**
-```markdown
-# Before (all in SKILL.md)
-## Complete API Reference
-[2000 words of documentation...]
-
-# After (SKILL.md references external file)
-## Resources
-See [API_REFERENCE.md](references/api_reference.md) for complete API documentation.
-
-To find specific endpoints:
-grep -i "endpoint_name" references/api_reference.md
-```
-
-### Enhancement Checklist
-
-**Metadata:**
-- [ ] Kebab-case naming
-- [ ] Comprehensive description (30-60 words)
-- [ ] Third-person voice
-- [ ] Specific triggers
-
-**Content:**
-- [ ] SKILL.md <500 lines
-- [ ] Imperative/infinitive voice
-- [ ] No second-person phrases
-- [ ] Concrete examples
-- [ ] XML tags for structure
-
-**Resources:**
-- [ ] Organized by type (scripts/references/assets)
-- [ ] No duplication with SKILL.md
-- [ ] Unused files deleted
-
-**Quality:**
-- [ ] Clear and actionable
-- [ ] No TODOs remaining
-- [ ] Ready for use
+**Quick Checklist:**
+- [ ] Kebab-case naming, description 30-60 words
+- [ ] Imperative voice, no "you should/can/will"
+- [ ] <500 lines, reference files for details
+- [ ] No duplication, unused files deleted
 
 ---
 
 ## Testing Checklist
 
-When creating a new skill, verify:
-
-- [ ] Skill file created in `.claude/skills/{name}/SKILL.md`
-- [ ] Proper frontmatter with name and description
-- [ ] Entry added to `skill-rules.json`
-- [ ] Keywords tested with real prompts
-- [ ] Intent patterns tested with variations
-- [ ] File path patterns tested with actual files
-- [ ] Content patterns tested against file contents
-- [ ] Block message is clear and actionable (if guardrail)
-- [ ] Skip conditions configured appropriately
-- [ ] Priority level matches importance
-- [ ] No false positives in testing
-- [ ] No false negatives in testing
-- [ ] Performance is acceptable (<100ms or <200ms)
-- [ ] JSON syntax validated: `jq . skill-rules.json`
-- [ ] **SKILL.md under 500 lines** ⭐
-- [ ] Reference files created if needed
-- [ ] Table of contents added to files > 100 lines
-
----
-
-## Reference Files
-
-For detailed information on specific topics, see:
-
-### [TRIGGER_TYPES.md](TRIGGER_TYPES.md)
-Complete guide to all trigger types:
-- Keyword triggers (explicit topic matching)
-- Intent patterns (implicit action detection)
-- File path triggers (glob patterns)
-- Content patterns (regex in files)
-- Best practices and examples for each
-- Common pitfalls and testing strategies
-
-### [SKILL_RULES_REFERENCE.md](SKILL_RULES_REFERENCE.md)
-Complete skill-rules.json schema:
-- Full TypeScript interface definitions
-- Field-by-field explanations
-- Complete guardrail skill example
-- Complete domain skill example
-- Validation guide and common errors
-
-### [HOOK_MECHANISMS.md](HOOK_MECHANISMS.md)
-Deep dive into hook internals:
-- UserPromptSubmit flow (detailed)
-- PreToolUse flow (detailed)
-- Exit code behavior table (CRITICAL)
-- Session state management
-- Performance considerations
-
-### [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
-Comprehensive debugging guide:
-- Skill not triggering (UserPromptSubmit)
-- PreToolUse not blocking
-- False positives (too many triggers)
-- Hook not executing at all
-- Performance issues
-
-### [PATTERNS_LIBRARY.md](PATTERNS_LIBRARY.md)
-Ready-to-use pattern collection:
-- Intent pattern library (regex)
-- File path pattern library (glob)
-- Content pattern library (regex)
-- Organized by use case
-- Copy-paste ready
-
-### [ADVANCED.md](ADVANCED.md)
-Future enhancements and ideas:
-- Dynamic rule updates
-- Skill dependencies
-- Conditional enforcement
-- Skill analytics
-- Skill versioning
+- [ ] SKILL.md created with frontmatter, <500 lines
+- [ ] Entry added with proper trigger patterns
+- [ ] Keywords/patterns tested with real prompts
+- [ ] No false positives/negatives, performance <200ms
 
 ---
 
 ## Quick Reference Summary
 
-### Create New Skill (5 Steps)
+### Create New Skill (4 Steps)
 
 1. Create `.claude/skills/{name}/SKILL.md` with frontmatter
-2. Add entry to `.claude/skills/skill-rules.json`
-3. Test with `npx tsx` commands
-4. Refine patterns based on testing
-5. Keep SKILL.md under 500 lines
+2. Test with `npx tsx` commands
+3. Refine patterns based on testing
+4. Keep SKILL.md under 500 lines
 
 ### Trigger Types
 
-- **Keywords**: Explicit topic mentions
-- **Intent**: Implicit action detection
+- **Keywords**: Explicit topic mentions (string or `{value, weight}`)
+- **Intent**: Implicit action detection (1.2x weight bonus)
 - **File Paths**: Location-based activation
 - **Content**: Technology-specific detection
 
-See [TRIGGER_TYPES.md](TRIGGER_TYPES.md) for complete details.
+
+### Scoring (v2.0)
+
+Keywords/patterns have weights; score determines enforcement level (critical ≥12, high ≥8, medium ≥4, low ≥2).
 
 ### Enforcement
 
@@ -601,14 +411,11 @@ cat <<'EOF' | npx tsx .claude/hooks/skill-verification-guard.ts
 EOF
 ```
 
-See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for complete debugging guide.
-
 ---
 
 ## Related Files
 
 **Configuration:**
-- `.claude/skills/skill-rules.json` - Master configuration
 - `.claude/hooks/state/` - Session tracking
 - `.claude/settings.json` - Hook registration
 
@@ -621,8 +428,4 @@ See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for complete debugging guide.
 
 ---
 
-**Skill Status**: COMPLETE - Restructured following Anthropic best practices ✅
-**Line Count**: < 500 (following 500-line rule) ✅
-**Progressive Disclosure**: Reference files for detailed information ✅
-
-**Next**: Create more skills, refine patterns based on usage
+**Skill Status**: COMPLETE ✅ | **Line Count**: <500 ✅ | **Progressive Disclosure**: Reference files ✅
